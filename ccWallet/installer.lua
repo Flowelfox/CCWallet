@@ -38,9 +38,13 @@ DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/ecnet2.lua"
 -- UI module files (stored with special prefix to handle folder structure)
 local UI_DOWNLOADS = {
     ["ui/utils.lua"] = BASE_URL .. "ccWallet/ui/utils.lua",
-    ["ui/mainMenu.lua"] = BASE_URL .. "ccWallet/ui/mainMenu.lua",
+    ["ui/menuManager.lua"] = BASE_URL .. "lib/menuManager.lua",
+    ["ui/loginMenu.lua"] = BASE_URL .. "ccWallet/ui/loginMenu.lua",
     ["ui/registerMenu.lua"] = BASE_URL .. "ccWallet/ui/registerMenu.lua",
     ["ui/accountMenu.lua"] = BASE_URL .. "ccWallet/ui/accountMenu.lua",
+    ["ui/sendMenu.lua"] = BASE_URL .. "ccWallet/ui/sendMenu.lua",
+    ["ui/transactionsMenu.lua"] = BASE_URL .. "ccWallet/ui/transactionsMenu.lua",
+    ["ui/historyMenu.lua"] = BASE_URL .. "ccWallet/ui/historyMenu.lua",
 }
 
 local args = {...}

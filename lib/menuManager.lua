@@ -1,6 +1,5 @@
--- Menu Manager: Unified state and navigation management for ccWallet UI
+-- Menu Manager: Unified state and navigation management for Basalt UI
 local basalt = require("basalt")
-local utils = require("ui.utils")
 local logging = require("logging")
 
 local menuManager = {}
