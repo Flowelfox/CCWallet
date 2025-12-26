@@ -1,4 +1,4 @@
-local NAME = "Wallet Installer"
+local NAME = "Shop Installer"
 local BASE_URL = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/"
 
 -- Basalt configuration
@@ -10,25 +10,25 @@ local BASALT_MINIFY_PATH = "https://raw.githubusercontent.com/Pyroxenium/Basalt2
 local BASALT_ELEMENTS = {
     "BaseElement",      -- Base class for all elements
     "VisualElement",    -- Base for visual elements
-    "Container",        -- Required by Frame
-    "Collection",       -- Required by List
+    "Container",        -- Required by Frame, ScrollFrame
     "BaseFrame",        -- Required for getMainFrame()
     "Frame",            -- UI container frames
     "Label",            -- Text labels
     "Input",            -- Text input fields
     "Button",           -- Clickable buttons
+    "ScrollFrame",      -- Scrollable containers
     "Timer",            -- Animation timers
-    "BigFont",          -- Large title text
-    "List",             -- Scrollable lists
 }
 
 local DOWNLOADS = {}
 
 -- Core files
-DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/version.txt"
-DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/installer.lua"
-DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/wallet.lua"
-DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/config.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccShop/version.txt"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccShop/installer.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccShop/shop.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccShop/config.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccShop/inventory.lua"
+
 -- Libraries (basalt.lua will be installed separately)
 DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/bankAPI.lua"
 DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/ecnet2.lua"
@@ -37,30 +37,26 @@ DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/logging.lua"
 -- UI module files (stored with special prefix to handle folder structure)
 local UI_DOWNLOADS = {
     ["setupWalletServer.lua"] = BASE_URL .. "lib/setupWalletServer.lua",
-    ["ui/utils.lua"] = BASE_URL .. "ccWallet/ui/utils.lua",
+    ["ui/utils.lua"] = BASE_URL .. "ccShop/ui/utils.lua",
     ["ui/menuManager.lua"] = BASE_URL .. "lib/menuManager.lua",
-    ["ui/loginMenu.lua"] = BASE_URL .. "ccWallet/ui/loginMenu.lua",
-    ["ui/registerMenu.lua"] = BASE_URL .. "ccWallet/ui/registerMenu.lua",
-    ["ui/accountMenu.lua"] = BASE_URL .. "ccWallet/ui/accountMenu.lua",
-    ["ui/sendMenu.lua"] = BASE_URL .. "ccWallet/ui/sendMenu.lua",
-    ["ui/transactionsMenu.lua"] = BASE_URL .. "ccWallet/ui/transactionsMenu.lua",
-    ["ui/historyMenu.lua"] = BASE_URL .. "ccWallet/ui/historyMenu.lua",
+    ["ui/navigationBar.lua"] = BASE_URL .. "ccShop/ui/navigationBar.lua",
+    ["ui/homeMenu.lua"] = BASE_URL .. "ccShop/ui/homeMenu.lua",
+    ["ui/settingsMenu.lua"] = BASE_URL .. "ccShop/ui/settingsMenu.lua",
+    ["ui/cartMenu.lua"] = BASE_URL .. "ccShop/ui/cartMenu.lua",
+    ["ui/footer.lua"] = BASE_URL .. "ccShop/ui/footer.lua",
 }
 
 local args = {...}
 local forceInstall = false
 
 local function showHelp()
-    print("CCWallet Installer")
+    print("CCShop Installer")
     print("")
     print("Usage: installer.lua [options]")
     print("")
     print("Options:")
-    print("  -f, --force    Force reinstall and allow non-pocket computers")
-    print("  -h, --help     Show this help message")
-    print("")
-    print("By default, the installer only runs on Pocket Computers")
-    print("with a wireless modem, and skips if already up to date.")
+    print("  -f, --force    Force reinstall")
+    print("  -h, --help     Show this help")
 end
 
 -- Parse arguments
@@ -72,17 +68,14 @@ for _, arg in ipairs(args) do
         forceInstall = true
     end
 end
+
 local width, height = term.getSize()
 local totalDownloaded = 0
 local totalFiles = #DOWNLOADS
 for _ in pairs(UI_DOWNLOADS) do totalFiles = totalFiles + 1 end
 
 local barLine = 4
-local installFolder = "ccWallet"
-local isPocket = false
-if pocket then
-    isPocket = true
-end
+local installFolder = "ccShop"
 
 -- Truncate text to fit screen width
 local function truncate(text, maxLen)
@@ -291,8 +284,8 @@ local function rewriteStartup()
     file.writeLine("local setupWalletServer = require(\"setupWalletServer\")")
     file.writeLine("setupWalletServer.run()")
     file.writeLine("while (true) do")
-    file.writeLine("	shell.run(\"" .. installFolder .. "/wallet.lua\")")
-    file.writeLine("	sleep(1)")
+    file.writeLine("    shell.run(\"" .. installFolder .. "/shop.lua\")")
+    file.writeLine("    sleep(1)")
     file.writeLine("end")
     file.close()
 end
@@ -334,22 +327,9 @@ local function getModemSide()
 end
 
 local function validateComputer()
-    if forceInstall then
-        return true
-    end
-
-    if not isPocket then
-        printError("This installer is only for Pocket Computers!")
-        return false
-    end
     local modemSide = getModemSide()
     if not modemSide then
-        printError("No modem found, this can be installed on a Pocket Computer with a wireless modem!")
-        return false
-    end
-    local modem = peripheral.wrap(modemSide)
-    if not modem.isWireless() then
-        printError("This installer is only for Pocket Computers with a wireless modem!")
+        printError("No modem found!")
         return false
     end
     return true

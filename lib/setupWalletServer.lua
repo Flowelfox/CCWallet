@@ -1,50 +1,38 @@
+-- Shared Wallet Server Setup
+-- Used by ccWallet and ccShop to configure server address
 local bankAPI = require("bankAPI")
 local basalt = require("basalt")
 local logging = require("logging")
-local config = require("config")
 
--- Initialize logging for setup script
-logging.setup(nil, config.logLevel, config.logFile, false)
-logging.info("[Setup] Starting wallet server setup...")
+local setupWalletServer = {}
 
-local args = {...}
-local force = false
-for _, arg in ipairs(args) do
-    if arg == "-f" or arg == "--force" then
-        force = true
-        logging.debug("[Setup] Force mode enabled")
-        break
-    end
-end
+function setupWalletServer.run(force)
+    logging.info("[Setup] Starting wallet server setup...")
 
-term.clear()
-term.setCursorPos(1, 1)
-local function main()
     if not force and fs.exists(".walletServerAddress.txt") then
         logging.debug("[Setup] Server already configured, skipping setup")
-        return
+        return true
     end
 
     local modem = peripheral.find("modem")
     if not modem then
         logging.error("[Setup] No modem found")
         print("No modem found")
-        return
+        return false
     end
     logging.debug("[Setup] Found modem: " .. peripheral.getName(modem))
 
+    term.clear()
+    term.setCursorPos(1, 1)
     print("Searching for running servers...")
     logging.debug("[Setup] Searching for running servers...")
     local runningServers = bankAPI.getRunningServers(peripheral.getName(modem))
     if #runningServers == 0 then
         logging.warning("[Setup] No servers found")
         print("No servers running")
-        return
+        return false
     end
     logging.info("[Setup] Found " .. #runningServers .. " server(s)")
-
-
-
 
     -- Get terminal size for calculations
     local termW, termH = term.getSize()
@@ -107,10 +95,10 @@ local function main()
             :setSize("{parent.width - 2}", 3)
             :setBackground(colors.magenta)
             :setForeground(colors.white)
-        
+
         -- Store server data with the button
         button.serverData = server
-        
+
         table.insert(buttons, button)
         yPos = yPos + 3 -- Increment Y position by button height
 
@@ -194,6 +182,7 @@ local function main()
     logging.debug("[Setup] UI initialized, running Basalt")
     basalt.run()
     logging.info("[Setup] Setup completed")
+    return true
 end
 
-main()
+return setupWalletServer
