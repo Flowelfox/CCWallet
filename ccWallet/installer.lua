@@ -1,19 +1,78 @@
 local NAME = "Wallet Installer"
+local BASE_URL = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/"
+
+-- Basalt configuration
+local BASALT_DEV_PATH = "https://raw.githubusercontent.com/Pyroxenium/Basalt2/refs/heads/main/src/"
+local BASALT_CONFIG_PATH = "https://raw.githubusercontent.com/Pyroxenium/Basalt2/refs/heads/main/config.lua"
+local BASALT_MINIFY_PATH = "https://raw.githubusercontent.com/Pyroxenium/Basalt2/refs/heads/main/tools/minify.lua"
+
+-- Required Basalt elements (with dependencies resolved)
+local BASALT_ELEMENTS = {
+    "BaseElement",      -- Base class for all elements
+    "VisualElement",    -- Base for visual elements
+    "Container",        -- Required by Frame
+    "Collection",       -- Required by List
+    "BaseFrame",        -- Required for getMainFrame()
+    "Frame",            -- UI container frames
+    "Label",            -- Text labels
+    "Input",            -- Text input fields
+    "Button",           -- Clickable buttons
+    "Timer",            -- Animation timers
+    "BigFont",          -- Large title text
+    "List",             -- Scrollable lists
+}
 
 local DOWNLOADS = {}
-local argStr = table.concat({...}, " ")
 
-DOWNLOADS[#DOWNLOADS + 1] = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/ccWallet/version.txt"
-DOWNLOADS[#DOWNLOADS + 1] = "https://basalt.madefor.cc/install.lua"
-DOWNLOADS[#DOWNLOADS + 1] = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/ccWallet/installer.lua"
-DOWNLOADS[#DOWNLOADS + 1] = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/ccWallet/wallet.lua"
-DOWNLOADS[#DOWNLOADS + 1] = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/lib/bankAPI.lua"
-DOWNLOADS[#DOWNLOADS + 1] = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/lib/ecnet2.lua"
-DOWNLOADS[#DOWNLOADS + 1] = "https://raw.githubusercontent.com/Flowelfox/CCWallet/main/ccWallet/setupWalletServer.lua"
+-- Core files
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/version.txt"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/installer.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/wallet.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/config.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/setupWalletServer.lua"
 
-local disableComputerValidation = false
-local width, height = term.getSize()
+-- Libraries (basalt.lua will be installed separately)
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/bankAPI.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/ecnet2.lua"
+
+-- UI module files (stored with special prefix to handle folder structure)
+local UI_DOWNLOADS = {
+    ["ui/utils.lua"] = BASE_URL .. "ccWallet/ui/utils.lua",
+    ["ui/mainMenu.lua"] = BASE_URL .. "ccWallet/ui/mainMenu.lua",
+    ["ui/registerMenu.lua"] = BASE_URL .. "ccWallet/ui/registerMenu.lua",
+    ["ui/accountMenu.lua"] = BASE_URL .. "ccWallet/ui/accountMenu.lua",
+}
+
+local args = {...}
+local forceInstall = false
+
+local function showHelp()
+    print("CCWallet Installer")
+    print("")
+    print("Usage: installer.lua [options]")
+    print("")
+    print("Options:")
+    print("  -f, --force    Force reinstall and allow non-pocket computers")
+    print("  -h, --help     Show this help message")
+    print("")
+    print("By default, the installer only runs on Pocket Computers")
+    print("with a wireless modem, and skips if already up to date.")
+end
+
+-- Parse arguments
+for _, arg in ipairs(args) do
+    if arg == "--help" or arg == "-h" then
+        showHelp()
+        return
+    elseif arg == "--force" or arg == "-f" then
+        forceInstall = true
+    end
+end
+local width = term.getSize()
 local totalDownloaded = 0
+local totalFiles = #DOWNLOADS
+for _ in pairs(UI_DOWNLOADS) do totalFiles = totalFiles + 1 end
+
 local barLine = 6
 local line = 8
 local installFolder = "ccWallet"
@@ -48,18 +107,26 @@ local function checkRemoteVersion(attempt)
     return rawData.readAll()
 end
 
-local function download(path, attempt)
+local function download(path, attempt, targetPath)
     local rawData = http.get(path)
-    local fileName = path:match("^.+/(.+)$")
+    local fileName = targetPath or path:match("^.+/(.+)$")
     update("Downloaded " .. fileName .. "!")
     if not rawData then
         if attempt == 3 then error("Failed to download " .. path .. " after 3 attempts!") end
         update("Failed to download " .. path .. ". Trying again (attempt " .. (attempt + 1) .. "/3)")
-        return download(path, attempt + 1)
+        return download(path, attempt + 1, targetPath)
     end
     local data = rawData.readAll()
 
-    local file = fs.open(installFolder .. '/' .. fileName, "w")
+    local fullPath = installFolder .. '/' .. fileName
+
+    -- Create parent directories if needed
+    local dir = fullPath:match("(.+)/[^/]+$")
+    if dir and not fs.exists(dir) then
+        fs.makeDir(dir)
+    end
+
+    local file = fs.open(fullPath, "w")
     file.write(data)
     file.close()
 end
@@ -76,14 +143,121 @@ local function downloadAll(downloads, total)
     end
 end
 
-local function installBasalt()
-    if fs.exists("startup") then
-        fs.delete("startup")
+local function downloadUIModules()
+    for targetPath, url in pairs(UI_DOWNLOADS) do
+        download(url, 1, targetPath)
+        totalDownloaded = totalDownloaded + 1
+        bar(totalDownloaded / totalFiles)
+        sleep(0.1)
     end
-    shell.run(installFolder .. "/install.lua", "release", "latest.lua")
-    fs.delete(installFolder .. "/basalt.lua")
-    shell.run("mv", "basalt.lua", installFolder .. "/basalt.lua")
-    fs.delete(installFolder .. "/install.lua")
+end
+
+-- Install Basalt with only required elements (minified single file)
+local function installBasalt()
+    update("Installing Basalt UI framework...")
+
+    -- Fetch Basalt config
+    local configRequest = http.get(BASALT_CONFIG_PATH)
+    if not configRequest then
+        error("Failed to download Basalt config")
+    end
+    local basaltConfig = load(configRequest.readAll())()
+    configRequest.close()
+
+    -- Fetch minifier
+    update("Downloading minifier...")
+    local minifyRequest = http.get(BASALT_MINIFY_PATH)
+    if not minifyRequest then
+        error("Failed to download Basalt minifier")
+    end
+    local minify = load(minifyRequest.readAll())()
+    minifyRequest.close()
+
+    local project = {}
+
+    -- Helper to download a file
+    local function downloadBasaltFile(url, name)
+        local request = http.get(url)
+        if request then
+            local content = request.readAll()
+            request.close()
+            return content
+        else
+            error("Failed to download Basalt file: " .. name)
+        end
+    end
+
+    -- Download core files
+    update("Downloading Basalt core...")
+    for fileName, fileInfo in pairs(basaltConfig.categories.core.files) do
+        project[fileInfo.path] = downloadBasaltFile(BASALT_DEV_PATH .. fileInfo.path, fileName)
+    end
+
+    -- Download libraries
+    update("Downloading Basalt libraries...")
+    for fileName, fileInfo in pairs(basaltConfig.categories.libraries.files) do
+        project[fileInfo.path] = downloadBasaltFile(BASALT_DEV_PATH .. fileInfo.path, fileName)
+    end
+
+    -- Download required elements
+    update("Downloading Basalt elements...")
+    for _, elementName in ipairs(BASALT_ELEMENTS) do
+        local fileInfo = basaltConfig.categories.elements.files[elementName]
+        if fileInfo then
+            project[fileInfo.path] = downloadBasaltFile(BASALT_DEV_PATH .. fileInfo.path, elementName)
+        else
+            update("Warning: Element not found: " .. elementName)
+        end
+    end
+
+    -- Minify all files
+    update("Minifying Basalt...")
+    for path, content in pairs(project) do
+        local success, minifiedContent = minify(content)
+        if success then
+            project[path] = minifiedContent
+        else
+            update("Warning: Failed to minify " .. path)
+        end
+    end
+
+    -- Build single file output
+    update("Building basalt.lua...")
+    local output = {
+        'local minified = true\n',
+        'local minified_elementDirectory = {}\n',
+        'local minified_pluginDirectory = {}\n',
+        'local project = {}\n',
+        'local loadedProject = {}\n',
+        'local baseRequire = require\n',
+        'require = function(path) if(project[path..".lua"])then if(loadedProject[path]==nil)then loadedProject[path] = project[path..".lua"]() end return loadedProject[path] end return baseRequire(path) end\n'
+    }
+
+    -- Add element directory entries
+    for filePath, _ in pairs(project) do
+        local elementName = filePath:match("^elements/(.+)%.lua$")
+        if elementName then
+            table.insert(output, string.format('minified_elementDirectory["%s"] = {}\n', elementName))
+        end
+    end
+
+    -- Add project files
+    for filePath, content in pairs(project) do
+        table.insert(output, string.format('project["%s"] = function(...) %s end\n', filePath, content))
+    end
+
+    table.insert(output, 'return project["main.lua"]()')
+
+    -- Write basalt.lua
+    local basaltPath = installFolder .. "/basalt.lua"
+    local file = fs.open(basaltPath, "w")
+    if file then
+        file.write(table.concat(output))
+        file.close()
+        update("Basalt installed successfully!")
+    else
+        error("Failed to write basalt.lua")
+    end
 end
 
 local function rewriteStartup()
@@ -112,6 +286,10 @@ local function createInstallationFolder()
     if not fs.exists(installFolder) then
         fs.makeDir(installFolder)
     end
+    -- Create ui subfolder
+    if not fs.exists(installFolder .. "/ui") then
+        fs.makeDir(installFolder .. "/ui")
+    end
 end
 
 local function removeOldVersion()
@@ -131,7 +309,7 @@ local function getModemSide()
 end
 
 local function validateComputer()
-    if disableComputerValidation then
+    if forceInstall then
         return true
     end
 
@@ -148,7 +326,7 @@ local function validateComputer()
     if not modem.isWireless() then
         printError("This installer is only for Pocket Computers with a wireless modem!")
         return false
-    end    
+    end
     return true
 end
 
@@ -161,8 +339,8 @@ local function install()
     -- Check version first without writing to file
     local newVersion = checkRemoteVersion(1)
     local currentVersion = checkCurrentVersion()
-    
-    if currentVersion == newVersion then
+
+    if currentVersion == newVersion and not forceInstall then
         return
     end
 
@@ -185,14 +363,16 @@ local function install()
     totalDownloaded = 0
 
     removeOldVersion()
-    downloadAll(DOWNLOADS, #DOWNLOADS)
-    update("Installing basalt...")
-    term.setTextColor(colors.black)
-    term.setBackgroundColor(colors.black)
-    term.setCursorPos(1, line + 1)
+    createInstallationFolder()
 
+    -- Download core files
+    downloadAll(DOWNLOADS, totalFiles)
+
+    -- Download UI module files
+    downloadUIModules()
+
+    -- Install Basalt UI framework with required elements only
     installBasalt()
-    term.setCursorPos(1, line)
 
     term.setTextColor(colors.green)
     term.setBackgroundColor(colors.black)
@@ -201,7 +381,7 @@ local function install()
     else
         update("Installed version " .. newVersion .. "!")
     end
-    
+
     rewriteStartup()
 
     for i = 1, 3 do
@@ -210,7 +390,7 @@ local function install()
         term.write("Rebooting in " .. (4 - i) .. " seconds...")
         sleep(1)
     end
-    
+
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.white)
     term.clear()

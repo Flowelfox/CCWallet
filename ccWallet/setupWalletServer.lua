@@ -1,29 +1,54 @@
 local bankAPI = require("bankAPI")
 local basalt = require("basalt")
+local logging = require("logging")
+local config = require("config")
 
+-- Initialize logging for setup script
+logging.setup(nil, config.logLevel, config.logFile, false)
+logging.info("[Setup] Starting wallet server setup...")
+
+local args = {...}
+local force = false
+for _, arg in ipairs(args) do
+    if arg == "-f" or arg == "--force" then
+        force = true
+        logging.debug("[Setup] Force mode enabled")
+        break
+    end
+end
 
 term.clear()
 term.setCursorPos(1, 1)
 local function main()
-    if fs.exists(".walletServerAddress.txt") then
+    if not force and fs.exists(".walletServerAddress.txt") then
+        logging.debug("[Setup] Server already configured, skipping setup")
         return
     end
 
     local modem = peripheral.find("modem")
     if not modem then
+        logging.error("[Setup] No modem found")
         print("No modem found")
         return
     end
+    logging.debug("[Setup] Found modem: " .. peripheral.getName(modem))
 
     print("Searching for running servers...")
+    logging.debug("[Setup] Searching for running servers...")
     local runningServers = bankAPI.getRunningServers(peripheral.getName(modem))
     if #runningServers == 0 then
+        logging.warning("[Setup] No servers found")
         print("No servers running")
         return
     end
+    logging.info("[Setup] Found " .. #runningServers .. " server(s)")
 
 
 
+
+    -- Get terminal size for calculations
+    local termW, termH = term.getSize()
+    local headerWidth = termW - 2  -- innerFrame width (mainFrame - 2)
 
     -- Create main frame with border
     local mainFrame = basalt.createFrame()
@@ -34,17 +59,17 @@ local function main()
     local innerFrame = mainFrame:addFrame()
         :setBackground(colors.gray)
         :setPosition(2, 2)
-        :setSize("parent.w - 2", "parent.h - 2")
+        :setSize("{parent.width - 2}", "{parent.height - 2}")
 
     -- Create decorative header
     local headerFrame = innerFrame:addFrame()
         :setPosition(1, 1)
-        :setSize("parent.w", 3)
+        :setSize("{parent.width}", 3)
         :setBackground(colors.gray)
 
     -- Add decorative top border
     local topBorder = headerFrame:addLabel()
-        :setText(string.rep("=", headerFrame:getWidth()))
+        :setText(string.rep("=", headerWidth))
         :setForeground(colors.magenta)
         :setBackground(colors.black)
         :setPosition(1, 1)
@@ -54,19 +79,21 @@ local function main()
         :setText("Select Server")
         :setForeground(colors.magenta)
         :setBackground(colors.black)
-        :setPosition("parent.w / 2 - 6", 2)
+        :setPosition("{parent.width / 2 - 6}", 2)
 
     -- Add decorative bottom border
     local bottomBorder = headerFrame:addLabel()
-        :setText(string.rep("=", headerFrame:getWidth()))
+        :setText(string.rep("=", headerWidth))
         :setForeground(colors.magenta)
         :setBackground(colors.black)
         :setPosition(1, 3)
 
     local function saveData(address)
+        logging.info("[Setup] Saving server address: " .. address)
         local file = fs.open(".walletServerAddress.txt", "w")
         file.write(address)
         file.close()
+        logging.debug("[Setup] Server address saved to .walletServerAddress.txt")
     end
 
     -- Create server buttons with improved styling
@@ -77,7 +104,7 @@ local function main()
         local button = innerFrame:addButton()
             :setText(serverName)
             :setPosition(2, yPos)
-            :setSize("parent.w - 2", 3)
+            :setSize("{parent.width - 2}", 3)
             :setBackground(colors.magenta)
             :setForeground(colors.white)
         
@@ -88,29 +115,32 @@ local function main()
         yPos = yPos + 3 -- Increment Y position by button height
 
         -- Add hover effects
-        button:onGetFocus(function(self)
+        button:onFocus(function(self)
+            logging.debug("[Setup] Server button focused: " .. serverName)
             self:setBackground(colors.lightBlue)
             self:setText(">" .. serverName .. "<")
         end)
 
-        button:onLoseFocus(function(self)
+        button:onBlur(function(self)
             self:setBackground(colors.magenta)
             self:setText(serverName)
         end)
 
         -- Add click handler
         button:onClick(function()
+            logging.info("[Setup] Server selected: " .. serverName .. " (" .. server.address .. ")")
             -- Save selected server address
             saveData(server.address)
-            
+
             -- Close program
+            logging.debug("[Setup] Stopping Basalt and exiting setup")
             basalt.stop()
         end)
     end
 
     -- Set focus to first button
     if #buttons > 0 then
-        buttons[1]:setFocus()
+        buttons[1]:setFocused(true)
     end
 
     -- Add keyboard navigation
@@ -131,7 +161,7 @@ local function main()
 
         -- If no button is focused, focus the first one
         if not currentIndex then
-            buttons[1]:setFocus()
+            buttons[1]:setFocused(true)
             currentIndex = 1
         end
 
@@ -140,26 +170,30 @@ local function main()
             if newIndex < 1 then
                 newIndex = #buttons
             end
-            buttons[newIndex]:setFocus()
+            buttons[newIndex]:setFocused(true)
         elseif key == keys.down or key == keys.tab then
             local newIndex = currentIndex + 1
             if newIndex > #buttons then
                 newIndex = 1
             end
-            buttons[newIndex]:setFocus()
+            buttons[newIndex]:setFocused(true)
         elseif key == keys.enter then
             local focusedButton = buttons[currentIndex]
             if focusedButton then
+                logging.info("[Setup] Server selected via keyboard: " .. focusedButton.serverData.name .. " (" .. focusedButton.serverData.address .. ")")
                 -- Save selected server address using the stored server data
                 saveData(focusedButton.serverData.address)
-                
+
                 -- Close program
+                logging.debug("[Setup] Stopping Basalt and exiting setup")
                 basalt.stop()
             end
         end
     end)
 
-    basalt.autoUpdate()
+    logging.debug("[Setup] UI initialized, running Basalt")
+    basalt.run()
+    logging.info("[Setup] Setup completed")
 end
 
 main()

@@ -1,7 +1,11 @@
-local function setup(monitor_name, level, file, writeToTerminal)
+local function setup(monitor_name, level, file, writeToTerminal, maxFileSize, maxFiles)
     level = level or "INFO"
     file = file or nil
-    writeToTerminal = writeToTerminal or true
+    if writeToTerminal == nil then
+        writeToTerminal = true
+    end
+    maxFileSize = maxFileSize or 10240
+    maxFiles = maxFiles or 5
 
     settings.load()
     local settingsData = settings.get("logging")
@@ -9,7 +13,9 @@ local function setup(monitor_name, level, file, writeToTerminal)
         logLevel = level,
         logMonitor = monitor_name,
         logFile = file,
-        writeToTerminal = writeToTerminal
+        writeToTerminal = writeToTerminal,
+        maxFileSize = maxFileSize,
+        maxFiles = maxFiles
     }
     settings.set("logging", settingsData)
     settings.save()
@@ -17,6 +23,7 @@ local function setup(monitor_name, level, file, writeToTerminal)
 end
 
 local function loadLoggingSettings()
+    settings.load()
     local settingsData = settings.get("logging")
     if settingsData == nil then
         settingsData = setup("", "INFO", nil, true)
@@ -24,8 +31,11 @@ local function loadLoggingSettings()
     return settingsData
 end
 
-local function getLoggingMonitor()  
+local function getLoggingMonitor()
     local settingsData = loadLoggingSettings()
+    if settingsData.logMonitor == nil or settingsData.logMonitor == "" then
+        return nil
+    end
     local loggingMonitor = peripheral.find(settingsData.logMonitor)
     if loggingMonitor == nil then
         return nil
@@ -33,11 +43,6 @@ local function getLoggingMonitor()
         loggingMonitor.setTextScale(0.5)
         return loggingMonitor
     end
-end
-
-local function getLoggingLevel()
-    local settingsData = loadLoggingSettings()
-    return settingsData.logLevel
 end
 
 local function getLogFile()
@@ -79,7 +84,62 @@ local function setWriteToTerminal(writeToTerminal)
     settings.save()
 end
 
+local function getMaxFileSize()
+    local settingsData = loadLoggingSettings()
+    return settingsData.maxFileSize or 10240
+end
 
+local function setMaxFileSize(maxFileSize)
+    local settingsData = loadLoggingSettings()
+    settingsData.maxFileSize = maxFileSize
+    settings.set("logging", settingsData)
+    settings.save()
+end
+
+local function getMaxFiles()
+    local settingsData = loadLoggingSettings()
+    return settingsData.maxFiles or 5
+end
+
+local function setMaxFiles(maxFiles)
+    local settingsData = loadLoggingSettings()
+    settingsData.maxFiles = maxFiles
+    settings.set("logging", settingsData)
+    settings.save()
+end
+
+local function rotateLogFile(logFile)
+    local maxFiles = getMaxFiles()
+
+    local oldestFile = logFile .. "." .. maxFiles
+    if fs.exists(oldestFile) then
+        fs.delete(oldestFile)
+    end
+
+    for i = maxFiles - 1, 1, -1 do
+        local oldPath = logFile .. "." .. i
+        local newPath = logFile .. "." .. (i + 1)
+        if fs.exists(oldPath) then
+            fs.move(oldPath, newPath)
+        end
+    end
+
+    if fs.exists(logFile) then
+        fs.move(logFile, logFile .. ".1")
+    end
+end
+
+local function shouldRotate(logFile)
+    if not fs.exists(logFile) then
+        return false
+    end
+    local maxFileSize = getMaxFileSize()
+    if maxFileSize <= 0 then
+        return false
+    end
+    local fileSize = fs.getSize(logFile)
+    return fileSize >= maxFileSize
+end
 
 local function logingLevelIndex(level)
     if level == "DEBUG" then
@@ -98,7 +158,7 @@ end
 local function getLoggingLevel()
     local settingsData = loadLoggingSettings()
     local logLevelIndex = logingLevelIndex(settingsData.logLevel)
-    if logLevelIndex == nill then
+    if logLevelIndex == nil then
         printError("Logging level not set, setting to \"INFO\"")
         setLoggingLevel("INFO")
         return "INFO"
@@ -189,21 +249,23 @@ local function _log(text, level)
 
     -- Write to the log File
     if logFile ~= nil then
+        if shouldRotate(logFile) then
+            rotateLogFile(logFile)
+        end
         local loggingFile = fs.open(logFile, "a")
         loggingFile.writeLine(line)
-        loggingFile.close()    
+        loggingFile.close()
     end
 end
 
 
-function clear()
+local function clear()
     local loggingMonitor = getLoggingMonitor()
     if loggingMonitor ~= nil then
         loggingMonitor.clear()
     end
     local terminal = term.current()
     terminal.clear()
-
 end
 
 local function logDebug(text)
@@ -228,6 +290,12 @@ local export = {
     setLoggingLevel = setLoggingLevel,
     setLogFile = setLogFile,
     setWriteToTerminal = setWriteToTerminal,
+    setMaxFileSize = setMaxFileSize,
+    setMaxFiles = setMaxFiles,
+    getMaxFileSize = getMaxFileSize,
+    getMaxFiles = getMaxFiles,
+    rotateLogFile = rotateLogFile,
+    clear = clear,
     debug = logDebug,
     info = logInfo,
     warning = logWarning,
