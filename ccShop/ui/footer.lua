@@ -58,9 +58,10 @@ function footer.create(parent, context)
     elements.notificationTimer = frame:addTimer()
         :setInterval(3)
         :stop()
-        :setAction(function()
-            footer.hideNotification(elements)
-        end)
+
+    elements.notificationTimer:setAction(function()
+        footer.hideNotification(elements)
+    end)
 
     elements.frame = frame
     elements.context = context

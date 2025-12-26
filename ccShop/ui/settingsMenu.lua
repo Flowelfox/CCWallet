@@ -10,10 +10,11 @@ function settingsMenu.create(parent, context)
     logging.debug("[settingsMenu] Creating settings menu UI...")
     local w = parent:getWidth()
     local h = parent:getHeight()
+    local frameHeight = h - 4
 
     local frame = parent:addFrame()
         :setPosition(1, 4)
-        :setSize(w, h - 4)
+        :setSize(w, frameHeight)
         :setBackground(colors.white)
         :setVisible(false)
 
@@ -46,7 +47,7 @@ function settingsMenu.create(parent, context)
     -- Change name sub-menu
     elements.changeNameMenu = frame:addFrame()
         :setPosition(1, 1)
-        :setSize(w, h - 4)
+        :setSize(w, frameHeight)
         :setBackground(colors.white)
         :setVisible(false)
 
@@ -71,14 +72,14 @@ function settingsMenu.create(parent, context)
         :setText("Save")
         :setForeground(colors.black)
         :setBackground(colors.pink)
-        :setPosition(math.floor(w / 2) - 10, h - 11)
+        :setPosition(math.floor(w / 2) - 10, frameHeight - 7)
         :setSize(20, 3)
 
     elements.backFromNameButton = elements.changeNameMenu:addButton()
         :setText("Back")
         :setForeground(colors.black)
         :setBackground(colors.pink)
-        :setPosition(math.floor(w / 2) - 10, h - 7)
+        :setPosition(math.floor(w / 2) - 10, frameHeight - 3)
         :setSize(20, 3)
 
     elements.frame = frame

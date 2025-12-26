@@ -10,10 +10,11 @@ function cartMenu.create(parent, context)
     logging.debug("[cartMenu] Creating cart menu UI...")
     local w = parent:getWidth()
     local h = parent:getHeight()
+    local frameHeight = h - 4
 
     local frame = parent:addFrame()
         :setPosition(1, 4)
-        :setSize(w, h - 4)
+        :setSize(w, frameHeight)
         :setBackground(colors.white)
         :setVisible(false)
 
@@ -27,7 +28,7 @@ function cartMenu.create(parent, context)
 
     elements.cartItemsFrame = frame:addScrollFrame()
         :setPosition(2, 4)
-        :setSize(w - 4, h - 10)
+        :setSize(w - 4, frameHeight - 10)
         :setBackground(colors.lightGray)
 
     elements.emptyCartLabel = elements.cartItemsFrame:addLabel()
@@ -40,13 +41,13 @@ function cartMenu.create(parent, context)
         :setText("Total: 0$")
         :setForeground(colors.black)
         :setBackground(colors.white)
-        :setPosition(2, h - 5)
+        :setPosition(2, frameHeight - 5)
 
     elements.checkoutButton = frame:addButton()
         :setText("Checkout")
         :setForeground(colors.black)
         :setBackground(colors.lime)
-        :setPosition(math.floor(w / 2) - 5, h - 4)
+        :setPosition(math.floor(w / 2) - 5, frameHeight - 4)
         :setSize(12, 3)
         :registerState("loading", nil, 300)
         :setBackgroundState("loading", colors.lightBlue)
@@ -55,7 +56,7 @@ function cartMenu.create(parent, context)
         :setText("Clear")
         :setForeground(colors.black)
         :setBackground(colors.red)
-        :setPosition(2, h - 4)
+        :setPosition(2, frameHeight - 4)
         :setSize(8, 3)
 
     -- Animation timer for checkout
@@ -68,7 +69,7 @@ function cartMenu.create(parent, context)
         :setText("")
         :setForeground(colors.green)
         :setBackground(colors.white)
-        :setPosition(2, h - 6)
+        :setPosition(2, frameHeight - 6)
 
     elements.frame = frame
     elements.context = context
@@ -188,9 +189,9 @@ function cartMenu.refreshCart(elements)
 
     -- Clear existing cart rows
     for _, row in ipairs(elements.cartRows) do
-        if row.nameLabel then row.nameLabel:remove() end
-        if row.qtyLabel then row.qtyLabel:remove() end
-        if row.priceLabel then row.priceLabel:remove() end
+        if row.nameLabel then row.nameLabel:destroy() end
+        if row.qtyLabel then row.qtyLabel:destroy() end
+        if row.priceLabel then row.priceLabel:destroy() end
     end
     elements.cartRows = {}
 

@@ -85,10 +85,12 @@ function homeMenu.create(parent, context)
     logging.debug("[homeMenu] Creating home menu UI...")
     local w = parent:getWidth()
     local h = parent:getHeight()
+    local frameHeight = h - 4
+    local scrollAreaHeight = frameHeight - 4
 
     local frame = parent:addFrame()
         :setPosition(1, 4)
-        :setSize(w, h - 4)
+        :setSize(w, frameHeight)
         :setBackground(colors.white)
 
     local elements = {}
@@ -109,10 +111,11 @@ function homeMenu.create(parent, context)
         :setPosition(10, 2)
         :setSize(w - 15, 1)
 
-    -- Items scroll frame
+    -- Items scroll frame with built-in scrollbar
+    -- Scrollbar appears automatically when content exceeds visible height
     elements.itemsFrame = frame:addScrollFrame()
         :setPosition(1, 4)
-        :setSize(w - 3, h - 5)
+        :setSize(w - 1, scrollAreaHeight)
         :setBackground(colors.white)
 
     -- Add items to frame
@@ -123,26 +126,6 @@ function homeMenu.create(parent, context)
         end)
         table.insert(elements.itemRows, row)
     end
-
-    -- Scroll bar frame
-    elements.scrollBarFrame = frame:addFrame()
-        :setPosition(w - 2, 4)
-        :setSize(3, h - 5)
-        :setBackground(colors.lightGray)
-
-    elements.scrollUpButton = elements.scrollBarFrame:addButton()
-        :setText(string.char(30))
-        :setForeground(colors.black)
-        :setBackground(colors.gray)
-        :setPosition(1, 1)
-        :setSize(3, 1)
-
-    elements.scrollDownButton = elements.scrollBarFrame:addButton()
-        :setText(string.char(31))
-        :setForeground(colors.black)
-        :setBackground(colors.gray)
-        :setPosition(1, h - 6)
-        :setSize(3, 1)
 
     elements.frame = frame
     elements.context = context
@@ -156,59 +139,64 @@ end
 function homeMenu.setupEvents(elements)
     logging.debug("[homeMenu] Setting up event handlers...")
 
-    -- Scroll handlers
-    elements.scrollUpButton:onClick(function()
-        local _, offset = elements.itemsFrame:getOffset()
-        if offset > 0 then
-            elements.itemsFrame:setOffset(0, offset - 1)
-        end
-    end)
-
-    elements.scrollDownButton:onClick(function()
-        local _, offset = elements.itemsFrame:getOffset()
-        elements.itemsFrame:setOffset(0, offset + 1)
-    end)
-
-    elements.itemsFrame:onScroll(function(self, event, direction, x, y)
-        local _, offset = self:getOffset()
-        if direction == -1 and offset > 0 then
-            self:setOffset(0, offset - 1)
-        elseif direction == 1 then
-            self:setOffset(0, offset + 1)
-        end
-    end)
-
-    -- Search functionality
-    elements.searchInput:onChange(function(self)
-        local searchText = self:getText():lower()
+    -- Search functionality - observe "text" property changes
+    elements.searchInput:onChange("text", function(self, newText)
+        local searchText = (newText or ""):lower()
         homeMenu.filterItems(elements, searchText)
     end)
 end
 
 function homeMenu.filterItems(elements, searchText)
     logging.debug("[homeMenu] Filtering items with: " .. searchText)
+    local visibleY = 1
+
     for i, row in ipairs(elements.itemRows) do
         local displayName = (row.item.displayName or row.item.name):lower()
         local itemName = row.item.name:lower()
         local visible = searchText == "" or displayName:find(searchText, 1, true) or itemName:find(searchText, 1, true)
 
-        row.nameLabel:setVisible(visible)
-        row.priceLabel:setVisible(visible)
-        row.minusButton:setVisible(visible)
-        row.quantityLabel:setVisible(visible)
-        row.plusButton:setVisible(visible)
+        if visible then
+            -- Reposition visible items to fill gaps
+            local w = elements.itemsFrame:getWidth()
+            local price = elements.context.state.priceList[row.item.name] or 0
+            local priceText = utils.formatPrice(price)
+            local nameWidth = w - 10 - #priceText
+
+            row.nameLabel:setPosition(1, visibleY)
+            row.priceLabel:setPosition(nameWidth + 1, visibleY)
+            row.minusButton:setPosition(w - 5, visibleY)
+            row.quantityLabel:setPosition(w - 4, visibleY)
+            row.plusButton:setPosition(w - 2, visibleY)
+
+            row.nameLabel:setVisible(true)
+            row.priceLabel:setVisible(true)
+            row.minusButton:setVisible(true)
+            row.quantityLabel:setVisible(true)
+            row.plusButton:setVisible(true)
+
+            visibleY = visibleY + 1
+        else
+            row.nameLabel:setVisible(false)
+            row.priceLabel:setVisible(false)
+            row.minusButton:setVisible(false)
+            row.quantityLabel:setVisible(false)
+            row.plusButton:setVisible(false)
+        end
     end
+
+    -- Reset scroll position to top when filtering
+    elements.itemsFrame:setOffset(0, 0)
 end
 
 function homeMenu.refreshItems(elements, itemsList, priceList)
     logging.debug("[homeMenu] Refreshing items list...")
     -- Clear existing items
     for _, row in ipairs(elements.itemRows) do
-        row.nameLabel:remove()
-        row.priceLabel:remove()
-        row.minusButton:remove()
-        row.quantityLabel:remove()
-        row.plusButton:remove()
+        row.nameLabel:destroy()
+        row.priceLabel:destroy()
+        row.minusButton:destroy()
+        row.quantityLabel:destroy()
+        row.plusButton:destroy()
     end
     elements.itemRows = {}
 
