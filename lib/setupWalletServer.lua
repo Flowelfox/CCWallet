@@ -4,9 +4,16 @@ local bankAPI = require("bankAPI")
 local basalt = require("basalt")
 local logging = require("logging")
 
-local setupWalletServer = {}
+local args = {...}
+local force = false
+for _, arg in ipairs(args) do
+    if arg == "-f" or arg == "--force" then
+        force = true
+        break
+    end
+end
 
-function setupWalletServer.run(force)
+local function main()
     logging.info("[Setup] Starting wallet server setup...")
 
     if not force and fs.exists(".walletServerAddress.txt") then
@@ -185,4 +192,4 @@ function setupWalletServer.run(force)
     return true
 end
 
-return setupWalletServer
+main()
