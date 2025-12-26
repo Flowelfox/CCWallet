@@ -43,7 +43,9 @@ local function main()
 
     -- Get terminal size for calculations
     local termW, termH = term.getSize()
-    local headerWidth = termW - 2  -- innerFrame width (mainFrame - 2)
+    local innerW = termW - 2
+    local innerH = termH - 2
+    local buttonW = innerW - 2
 
     -- Create main frame with border
     local mainFrame = basalt.createFrame()
@@ -54,17 +56,17 @@ local function main()
     local innerFrame = mainFrame:addFrame()
         :setBackground(colors.gray)
         :setPosition(2, 2)
-        :setSize("{parent.width - 2}", "{parent.height - 2}")
+        :setSize(innerW, innerH)
 
     -- Create decorative header
     local headerFrame = innerFrame:addFrame()
         :setPosition(1, 1)
-        :setSize("{parent.width}", 3)
+        :setSize(innerW, 3)
         :setBackground(colors.gray)
 
     -- Add decorative top border
     local topBorder = headerFrame:addLabel()
-        :setText(string.rep("=", headerWidth))
+        :setText(string.rep("=", innerW))
         :setForeground(colors.magenta)
         :setBackground(colors.black)
         :setPosition(1, 1)
@@ -74,11 +76,11 @@ local function main()
         :setText("Select Server")
         :setForeground(colors.magenta)
         :setBackground(colors.black)
-        :setPosition("{parent.width / 2 - 6}", 2)
+        :setPosition(math.floor(innerW / 2 - 6), 2)
 
     -- Add decorative bottom border
     local bottomBorder = headerFrame:addLabel()
-        :setText(string.rep("=", headerWidth))
+        :setText(string.rep("=", innerW))
         :setForeground(colors.magenta)
         :setBackground(colors.black)
         :setPosition(1, 3)
@@ -99,7 +101,7 @@ local function main()
         local button = innerFrame:addButton()
             :setText(serverName)
             :setPosition(2, yPos)
-            :setSize("{parent.width - 2}", 3)
+            :setSize(buttonW, 3)
             :setBackground(colors.magenta)
             :setForeground(colors.white)
 

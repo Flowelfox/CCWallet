@@ -1,5 +1,5 @@
 -- Navigation Bar UI for ccShop
-local menuManager = require("menuManager")
+local menuManager = require("ui.menuManager")
 local logging = require("logging")
 
 local navigationBar = {}

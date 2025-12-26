@@ -1,5 +1,5 @@
 -- Home Menu UI for ccShop
-local menuManager = require("menuManager")
+local menuManager = require("ui.menuManager")
 local utils = require("ui.utils")
 local logging = require("logging")
 
