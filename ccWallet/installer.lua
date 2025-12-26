@@ -34,6 +34,7 @@ DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "ccWallet/setupWalletServer.lua"
 -- Libraries (basalt.lua will be installed separately)
 DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/bankAPI.lua"
 DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/ecnet2.lua"
+DOWNLOADS[#DOWNLOADS + 1] = BASE_URL .. "lib/logging.lua"
 
 -- UI module files (stored with special prefix to handle folder structure)
 local UI_DOWNLOADS = {
@@ -72,25 +73,50 @@ for _, arg in ipairs(args) do
         forceInstall = true
     end
 end
-local width = term.getSize()
+local width, height = term.getSize()
 local totalDownloaded = 0
 local totalFiles = #DOWNLOADS
 for _ in pairs(UI_DOWNLOADS) do totalFiles = totalFiles + 1 end
 
-local barLine = 6
-local line = 8
+local barLine = 4
 local installFolder = "ccWallet"
 local isPocket = false
 if pocket then
     isPocket = true
 end
 
+-- Truncate text to fit screen width
+local function truncate(text, maxLen)
+    maxLen = maxLen or width
+    if #text > maxLen then
+        return text:sub(1, maxLen - 2) .. ".."
+    end
+    return text
+end
+
+-- Store log lines for scrolling
+local logLines = {}
+local logStartLine = barLine + 2  -- Empty line after progress bar
+local logMaxLines = height - logStartLine - 1  -- Reserve bottom line for status
+
 local function update(text)
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.white)
-    term.setCursorPos(1, line)
-    write(text)
-    line = line + 1
+
+    -- Add new line to log
+    table.insert(logLines, truncate(text))
+
+    -- Keep only the lines that fit on screen
+    while #logLines > logMaxLines do
+        table.remove(logLines, 1)
+    end
+
+    -- Redraw all visible log lines
+    for i, logText in ipairs(logLines) do
+        term.setCursorPos(1, logStartLine + i - 1)
+        term.clearLine()
+        write(logText)
+    end
 end
 
 local function bar(ratio)
@@ -114,10 +140,10 @@ end
 local function download(path, attempt, targetPath)
     local rawData = http.get(path)
     local fileName = targetPath or path:match("^.+/(.+)$")
-    update("Downloaded " .. fileName .. "!")
+    update("+ " .. fileName)
     if not rawData then
-        if attempt == 3 then error("Failed to download " .. path .. " after 3 attempts!") end
-        update("Failed to download " .. path .. ". Trying again (attempt " .. (attempt + 1) .. "/3)")
+        if attempt == 3 then error("Download failed: " .. fileName) end
+        update("Retry " .. attempt .. "/3: " .. fileName)
         return download(path, attempt + 1, targetPath)
     end
     local data = rawData.readAll()
@@ -158,21 +184,20 @@ end
 
 -- Install Basalt with only required elements (minified single file)
 local function installBasalt()
-    update("Installing Basalt UI framework...")
+    update("Basalt: fetching config...")
 
     -- Fetch Basalt config
     local configRequest = http.get(BASALT_CONFIG_PATH)
     if not configRequest then
-        error("Failed to download Basalt config")
+        error("Basalt config failed")
     end
     local basaltConfig = load(configRequest.readAll())()
     configRequest.close()
 
     -- Fetch minifier
-    update("Downloading minifier...")
     local minifyRequest = http.get(BASALT_MINIFY_PATH)
     if not minifyRequest then
-        error("Failed to download Basalt minifier")
+        error("Minifier failed")
     end
     local minify = load(minifyRequest.readAll())()
     minifyRequest.close()
@@ -187,46 +212,42 @@ local function installBasalt()
             request.close()
             return content
         else
-            error("Failed to download Basalt file: " .. name)
+            error("Basalt: " .. name .. " failed")
         end
     end
 
     -- Download core files
-    update("Downloading Basalt core...")
+    update("Basalt: core...")
     for fileName, fileInfo in pairs(basaltConfig.categories.core.files) do
         project[fileInfo.path] = downloadBasaltFile(BASALT_DEV_PATH .. fileInfo.path, fileName)
     end
 
     -- Download libraries
-    update("Downloading Basalt libraries...")
+    update("Basalt: libraries...")
     for fileName, fileInfo in pairs(basaltConfig.categories.libraries.files) do
         project[fileInfo.path] = downloadBasaltFile(BASALT_DEV_PATH .. fileInfo.path, fileName)
     end
 
     -- Download required elements
-    update("Downloading Basalt elements...")
+    update("Basalt: elements...")
     for _, elementName in ipairs(BASALT_ELEMENTS) do
         local fileInfo = basaltConfig.categories.elements.files[elementName]
         if fileInfo then
             project[fileInfo.path] = downloadBasaltFile(BASALT_DEV_PATH .. fileInfo.path, elementName)
-        else
-            update("Warning: Element not found: " .. elementName)
         end
     end
 
     -- Minify all files
-    update("Minifying Basalt...")
+    update("Basalt: minifying...")
     for path, content in pairs(project) do
         local success, minifiedContent = minify(content)
         if success then
             project[path] = minifiedContent
-        else
-            update("Warning: Failed to minify " .. path)
         end
     end
 
     -- Build single file output
-    update("Building basalt.lua...")
+    update("Basalt: building...")
     local output = {
         'local minified = true\n',
         'local minified_elementDirectory = {}\n',
@@ -258,9 +279,9 @@ local function installBasalt()
     if file then
         file.write(table.concat(output))
         file.close()
-        update("Basalt installed successfully!")
+        update("Basalt: done!")
     else
-        error("Failed to write basalt.lua")
+        error("Basalt write failed")
     end
 end
 
@@ -352,15 +373,17 @@ local function install()
     term.setTextColor(colors.yellow)
     term.clear()
 
-    term.setCursorPos(math.floor(width / 2 - #NAME / 2 + 0.5), 2)
+    -- Center title
+    local titleX = math.max(1, math.floor(width / 2 - #NAME / 2 + 0.5))
+    term.setCursorPos(titleX, 1)
     write(NAME)
 
     term.setTextColor(colors.white)
-    term.setCursorPos(1, barLine - 2)
+    term.setCursorPos(1, 3)  -- Line 2 is empty after title
     if currentVersion then
-        term.write("Updating from " .. currentVersion .. " to " .. newVersion .. "...")
+        write(truncate(currentVersion .. " -> " .. newVersion))
     else
-        term.write("Installing version " .. newVersion .. "...")
+        write(truncate("Installing v" .. newVersion))
     end
 
     bar(0)
@@ -381,17 +404,17 @@ local function install()
     term.setTextColor(colors.green)
     term.setBackgroundColor(colors.black)
     if currentVersion then
-        update("Updated to version " .. newVersion .. "!")
+        update("Updated to v" .. newVersion)
     else
-        update("Installed version " .. newVersion .. "!")
+        update("Installed v" .. newVersion)
     end
 
     rewriteStartup()
 
     for i = 1, 3 do
-        term.setCursorPos(1, line)
+        term.setCursorPos(1, height)
         term.clearLine()
-        term.write("Rebooting in " .. (4 - i) .. " seconds...")
+        write("Reboot in " .. (4 - i) .. "s...")
         sleep(1)
     end
 

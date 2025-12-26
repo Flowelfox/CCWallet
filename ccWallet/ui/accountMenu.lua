@@ -14,7 +14,7 @@ function accountMenu.create(parent, context)
     local frame = parent:addFrame()
         :setPosition(1, 1)
         :setSize(parent:getWidth(), parent:getHeight())
-        :setBackground(colors.gray)
+        :setBackground(colors.white)
         :setVisible(false)
 
     local elements = {}
