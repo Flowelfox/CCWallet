@@ -281,7 +281,7 @@ local function rewriteStartup()
     local file = fs.open("startup", "w")
 
     file.writeLine("shell.run(\"".. installFolder .. "/installer.lua\")")
-    file.writeLine("local setupWalletServer = require(\"setupWalletServer\")")
+    file.writeLine("local setupWalletServer = require(\"" .. installFolder .. ".setupWalletServer\")")
     file.writeLine("setupWalletServer.run()")
     file.writeLine("while (true) do")
     file.writeLine("    shell.run(\"" .. installFolder .. "/shop.lua\")")
